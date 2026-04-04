@@ -10,7 +10,7 @@ const MovieCard = ({ movie, onWatch }) => {
 
   useEffect(() => {
     if (imdb_id) {
-      fetch(`https://www.omdbapi.com/?i=${imdb_id}&apikey=${import.meta.env.VITE_OMDB_API_KEY}`)
+      fetch(`/api/poster?i=${imdb_id}`)
         .then(res => res.json())
         .then(data => {
           if (data.Poster && data.Poster !== 'N/A') {
@@ -111,19 +111,22 @@ function App() {
     loadInitialRows();
   }, []);
 
-  const loadInitialRows = async () => {
+  const loadInitialRows = () => {
     setLoading(true);
-    // Fetch different pages to simulate different categorization
-    const [p1, p2, p3] = await Promise.all([
-      fetchMovies(1),
-      fetchMovies(2),
-      fetchMovies(3)
-    ]);
-    
-    if (p1 && p1.data) setRow1(p1.data);
-    if (p2 && p2.data) setRow2(p2.data);
-    if (p3 && p3.data) setRow3(p3.data);
-    setLoading(false);
+    // Fetch rows independently so the page populates as data arrives
+    fetchMovies(1).then(p1 => {
+      if (p1 && p1.data) setRow1(p1.data);
+      // Display the app as soon as we have enough data for the hero banner
+      setLoading(false);
+    }).catch(console.error);
+
+    fetchMovies(2).then(p2 => {
+      if (p2 && p2.data) setRow2(p2.data);
+    }).catch(console.error);
+
+    fetchMovies(3).then(p3 => {
+      if (p3 && p3.data) setRow3(p3.data);
+    }).catch(console.error);
   };
 
   useEffect(() => {
