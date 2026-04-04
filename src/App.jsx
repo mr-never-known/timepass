@@ -200,49 +200,66 @@ function App() {
 
   // Render Details View (Player)
   if (selectedMovie) {
+    // Pull HD poster from session cache — replace SX300 with SX1080 for full-quality background
+    const cachedPoster = sessionStorage.getItem(`poster_${selectedMovie.imdb_id}`);
+    const detailsBg = cachedPoster ? cachedPoster.replace('SX300', 'SX1080') : null;
+
     return (
-      <div className="details-view animate-fade-in">
-        <button
-          onClick={() => { setSelectedMovie(null); setShowIframe(false); }}
-          style={{ color: '#fff', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}
-        >
-          &larr; Back to Browse
-        </button>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h2 style={{ fontSize: '2.5rem' }}>{selectedMovie.orig_title} ({selectedMovie.year})</h2>
-          
-          <div style={{ background: 'rgba(229, 9, 20, 0.1)', border: '1px solid rgba(229, 9, 20, 0.2)', padding: '0.75rem 1rem', borderRadius: '4px', color: '#ff6b6b', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content' }}>
-            <AlertTriangle size={18} />
-            <strong>Caution:</strong> Use Brave browser or an adblocker to restrict popups
+      <div 
+        className="details-view animate-fade-in"
+        style={detailsBg ? {
+          backgroundImage: `url("${detailsBg}")`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center top',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed',
+        } : {}}
+      >
+        {/* Dark overlay so content stays readable over the poster */}
+        <div className="details-overlay" />
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <button
+            onClick={() => { setSelectedMovie(null); setShowIframe(false); }}
+            style={{ color: '#fff', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold' }}
+          >
+            &larr; Back to Browse
+          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h2 style={{ fontSize: '2.5rem', textShadow: '2px 2px 8px rgba(0,0,0,0.9)' }}>{selectedMovie.orig_title} ({selectedMovie.year})</h2>
+            
+            <div style={{ background: 'rgba(229, 9, 20, 0.15)', border: '1px solid rgba(229, 9, 20, 0.3)', padding: '0.75rem 1rem', borderRadius: '4px', color: '#ff6b6b', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', width: 'fit-content', backdropFilter: 'blur(4px)' }}>
+              <AlertTriangle size={18} />
+              <strong>Caution:</strong> Use Brave browser or an adblocker to restrict popups
+            </div>
+            
+            {!showIframe ? (
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button 
+                  className="btn-primary" 
+                  onClick={() => setShowIframe(true)}
+                >
+                  <PlayCircle size={22} /> Play
+                </button>
+                <a 
+                  href={`https://moviesapi.to/movie/${selectedMovie.imdb_id || selectedMovie.tmdbid}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="btn-secondary"
+                >
+                  <ExternalLink size={22} /> Open in New Tab
+                </a>
+              </div>
+            ) : (
+              <div style={{ aspectRatio: '16/9', width: '100%', background: '#000', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                <iframe
+                  src={`https://moviesapi.to/movie/${selectedMovie.imdb_id || selectedMovie.tmdbid}`}
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                  allowFullScreen
+                  title="Player"
+                ></iframe>
+              </div>
+            )}
           </div>
-          
-          {!showIframe ? (
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-              <button 
-                className="btn-primary" 
-                onClick={() => setShowIframe(true)}
-              >
-                <PlayCircle size={22} /> Play
-              </button>
-              <a 
-                href={`https://moviesapi.to/movie/${selectedMovie.imdb_id || selectedMovie.tmdbid}`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="btn-secondary"
-              >
-                <ExternalLink size={22} /> Open in New Tab
-              </a>
-            </div>
-          ) : (
-            <div style={{ aspectRatio: '16/9', width: '100%', background: '#000', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
-              <iframe
-                src={`https://moviesapi.to/movie/${selectedMovie.imdb_id || selectedMovie.tmdbid}`}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                allowFullScreen
-                title="Player"
-              ></iframe>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -332,7 +349,7 @@ function App() {
           {featuredMovie && (
             <header className="banner" style={{ 
                backgroundSize: 'cover',
-               backgroundPosition: 'center 10%',
+               backgroundPosition: 'center 30%',
                backgroundImage: featuredPoster 
                  ? `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url("${featuredPoster}")` 
                  : `linear-gradient(135deg, #111 0%, #e5091444 100%)`
