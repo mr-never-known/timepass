@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, PlayCircle, Loader, Trophy, ExternalLink, AlertTriangle, Info } from 'lucide-react';
+import { Search, PlayCircle, Loader, Trophy, ExternalLink, AlertTriangle, Info, X } from 'lucide-react';
 import { fetchMovies } from './services/api';
 import './index.css';
 
@@ -10,14 +10,20 @@ const MovieCard = ({ movie, onWatch }) => {
 
   useEffect(() => {
     if (imdb_id) {
-      fetch(`/api/poster?i=${imdb_id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.Poster && data.Poster !== 'N/A') {
-            setPosterUrl(data.Poster);
-          }
-        })
-        .catch(console.error);
+      const cachedPoster = sessionStorage.getItem(`poster_${imdb_id}`);
+      if (cachedPoster) {
+        setPosterUrl(cachedPoster);
+      } else {
+        fetch(`/api/poster?i=${imdb_id}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.Poster && data.Poster !== 'N/A') {
+              setPosterUrl(data.Poster);
+              sessionStorage.setItem(`poster_${imdb_id}`, data.Poster);
+            }
+          })
+          .catch(console.error);
+      }
     }
   }, [imdb_id]);
   
@@ -95,6 +101,8 @@ function App() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [showIframe, setShowIframe] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [featuredMovie, setFeaturedMovie] = useState(null);
+  const [featuredPoster, setFeaturedPoster] = useState(null);
   
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -113,21 +121,58 @@ function App() {
 
   const loadInitialRows = () => {
     setLoading(true);
-    // Fetch rows independently so the page populates as data arrives
-    fetchMovies(1).then(p1 => {
-      if (p1 && p1.data) setRow1(p1.data);
-      // Display the app as soon as we have enough data for the hero banner
+    
+    // Helper to fetch row or get from cache
+    const getRow = (pageNum, setRow, rowKey) => {
+      const cached = sessionStorage.getItem(rowKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setRow(parsed);
+        return Promise.resolve(parsed);
+      }
+      return fetchMovies(pageNum).then(res => {
+        if (res && res.data) {
+          sessionStorage.setItem(rowKey, JSON.stringify(res.data));
+          setRow(res.data);
+          return res.data;
+        }
+        return [];
+      });
+    };
+
+    getRow(1, setRow1, 'row1').then(data => {
+      if (data && data.length > 0) {
+        // Pick a completely random featured movie every time
+        const randomMovie = data[Math.floor(Math.random() * data.length)];
+        setFeaturedMovie(randomMovie);
+      }
       setLoading(false);
     }).catch(console.error);
 
-    fetchMovies(2).then(p2 => {
-      if (p2 && p2.data) setRow2(p2.data);
-    }).catch(console.error);
-
-    fetchMovies(3).then(p3 => {
-      if (p3 && p3.data) setRow3(p3.data);
-    }).catch(console.error);
+    getRow(2, setRow2, 'row2').catch(console.error);
+    getRow(3, setRow3, 'row3').catch(console.error);
   };
+
+  useEffect(() => {
+    if (featuredMovie?.imdb_id) {
+      const cachedPoster = sessionStorage.getItem(`poster_${featuredMovie.imdb_id}`);
+      if (cachedPoster) {
+        // Request the high-resolution (1080 width) version from Amazon servers instead of the 300px default for the hero banner
+        setFeaturedPoster(cachedPoster.replace('SX300', 'SX1080'));
+      } else {
+        fetch(`/api/poster?i=${featuredMovie.imdb_id}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.Poster && data.Poster !== 'N/A') {
+              // Cache original size for small cards, but use 1080p size for the background banner
+              setFeaturedPoster(data.Poster.replace('SX300', 'SX1080'));
+              sessionStorage.setItem(`poster_${featuredMovie.imdb_id}`, data.Poster);
+            }
+          })
+          .catch(console.error);
+      }
+    }
+  }, [featuredMovie]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -203,8 +248,6 @@ function App() {
     );
   }
 
-  const featuredMovie = row1.length > 0 ? row1[0] : null;
-
   return (
     <div className="app">
       {/* Navbar */}
@@ -216,14 +259,30 @@ function App() {
           </button>
         </div>
         <div className={`search-wrapper ${mobileSearchOpen ? 'mobile-open' : ''}`}>
-          <Search className="search-icon" size={18} color="#808080" />
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Titles, people..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className="search-input-container">
+            <Search className="search-icon" size={18} color="#808080" />
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Titles, people..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {(query !== '' || filterYear !== '') && (
+              <button 
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setQuery('');
+                  setFilterYear('');
+                  setMobileSearchOpen(false);
+                }}
+                className="clear-search-btn"
+                title="Close Search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
           <select 
             value={filterYear} 
             onChange={(e) => setFilterYear(e.target.value)}
@@ -271,7 +330,13 @@ function App() {
         /* Browse View */
         <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
           {featuredMovie && (
-            <header className="banner" style={{ background: `linear-gradient(135deg, #111 0%, #e5091444 100%)` }}>
+            <header className="banner" style={{ 
+               backgroundSize: 'cover',
+               backgroundPosition: 'center 10%',
+               backgroundImage: featuredPoster 
+                 ? `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url("${featuredPoster}")` 
+                 : `linear-gradient(135deg, #111 0%, #e5091444 100%)`
+             }}>
               <div className="banner-contents">
                 <h1 className="banner-title">{featuredMovie.orig_title}</h1>
                 <div className="banner-buttons">
