@@ -2,14 +2,6 @@
 
 Timepass is a visually stunning, responsive React web application that serves as a modern frontend interface for discovering and interacting with movie data available on the public internet. Built with Vite, Bun, and React.
 
-## Deployment Readiness
-This project is **100% ready** to be pushed to GitHub and deployed to Vercel. Because it was scaffolded using Vite, Vercel will automatically detect its build settings (using `vite build`) without requiring any additional configuration files.
-
-### Deploy to Vercel
-1. Push this repository to GitHub.
-2. Go to Vercel and Import Project.
-3. Vercel will auto-detect Vite. Click **Deploy**.
-
 ---
 
 ## Running Locally
