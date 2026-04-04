@@ -115,7 +115,17 @@ img {
   letter-spacing: -1px;
   background: linear-gradient(to right, var(--accent-color) 20%, #000);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.nav-header {
+  display: flex;
+  align-items: center;
+}
+
+.mobile-search-toggle {
+  display: none;
 }
 
 /* Rows */
@@ -320,3 +330,111 @@ img {
   animation: spin 1s linear infinite;
 }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+  .nav-netflix {
+    padding: 1rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  
+  .nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .mobile-search-toggle {
+    display: block;
+    padding: 0.5rem;
+  }
+  
+  .nav-logo {
+    font-size: 1.8rem;
+  }
+  
+  .search-wrapper {
+    display: none; /* hidden by default on mobile */
+    width: 100%;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+  
+  .search-wrapper.mobile-open {
+    display: flex;
+  }
+  
+  .search-input {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .banner-contents {
+    margin-left: 1rem;
+    padding-top: 20vh;
+  }
+  
+  .banner-title {
+    font-size: 2.5rem;
+    max-width: 90%;
+  }
+  
+  .banner-description {
+    font-size: 1rem;
+    width: 100%;
+    max-width: 90%;
+    height: auto;
+  }
+  
+  .banner-buttons {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .row {
+    margin-left: 1rem;
+  }
+  
+  .row-title {
+    font-size: 1.2rem;
+  }
+  
+  .netflix-card {
+    width: 140px;
+    height: 210px;
+  }
+  
+  .search-title {
+    padding: 140px 1rem 1rem 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .search-grid {
+    padding: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+  
+  .details-view {
+    padding: 140px 1rem 1rem 1rem;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .search-wrapper {
+    flex-wrap: wrap;
+  }
+  
+  .search-input {
+    max-width: 100%;
+  }
+  
+  .filter-select {
+    margin-left: 0;
+    margin-top: 0.5rem;
+    width: 100%;
+  }
+}

@@ -71,6 +71,7 @@ function App() {
   const [filterYear, setFilterYear] = useState('');
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [showIframe, setShowIframe] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -182,8 +183,13 @@ function App() {
     <div className="app">
       {/* Navbar */}
       <nav className={`nav-netflix ${isScrolled ? 'scrolled' : ''}`}>
-        <div className="nav-logo">PURA TIMEPASS</div>
-        <div className="search-wrapper">
+        <div className="nav-header">
+          <div className="nav-logo">PURA TIMEPASS</div>
+          <button className="mobile-search-toggle" onClick={() => setMobileSearchOpen(!mobileSearchOpen)}>
+            <Search size={24} color="#fff" />
+          </button>
+        </div>
+        <div className={`search-wrapper ${mobileSearchOpen ? 'mobile-open' : ''}`}>
           <Search className="search-icon" size={18} color="#808080" />
           <input
             type="text"
