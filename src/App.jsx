@@ -210,9 +210,8 @@ function App() {
         style={detailsBg ? {
           backgroundImage: `url("${detailsBg}")`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center top',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed',
+          backgroundPosition: 'center 25%',
+          backgroundRepeat: 'no-repeat'
         } : {}}
       >
         {/* Dark overlay so content stays readable over the poster */}
