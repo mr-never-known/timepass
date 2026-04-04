@@ -5,7 +5,21 @@ import './index.css';
 
 // MovieCard Component - Standard Netflix Style Hover Poster
 const MovieCard = ({ movie, onWatch }) => {
-  const { orig_title, year, quality } = movie;
+  const { orig_title, year, quality, imdb_id } = movie;
+  const [posterUrl, setPosterUrl] = useState(null);
+
+  useEffect(() => {
+    if (imdb_id) {
+      fetch(`https://www.omdbapi.com/?i=${imdb_id}&apikey=${import.meta.env.VITE_OMDB_API_KEY}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.Poster && data.Poster !== 'N/A') {
+            setPosterUrl(data.Poster);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [imdb_id]);
   
   // Generate a random gradient based on title length for placeholder poster
   const gradients = [
@@ -16,17 +30,26 @@ const MovieCard = ({ movie, onWatch }) => {
     'linear-gradient(135deg, #8E2DE2 0%, #4A00E0 100%)',
     'linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%)',
   ];
-  const gradient = gradients[(orig_title.length || 0) % gradients.length];
+  const gradient = gradients[(orig_title?.length || 0) % gradients.length];
+  
+  const cardBackground = posterUrl ? `url(${posterUrl})` : gradient;
 
   return (
     <div 
       className="netflix-card" 
       onClick={() => onWatch(movie)}
-      style={{ background: gradient }}
+      style={{ 
+        backgroundImage: cardBackground,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
     >
-      <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.7)', flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <PlayCircle size={48} color="rgba(255,255,255,0.3)" />
-      </div>
+      {!posterUrl && (
+        <div style={{ padding: '1rem', color: 'rgba(255,255,255,0.7)', flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <PlayCircle size={48} color="rgba(255,255,255,0.3)" />
+        </div>
+      )}
       {(quality || year) && (
         <div className="poster-year">
           {quality || year}
