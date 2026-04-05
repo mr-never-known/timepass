@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, PlayCircle, Loader, Trophy, ExternalLink, AlertTriangle, Info, X, Tv, Film, RotateCw } from 'lucide-react';
 import { fetchMovies, fetchTVShows } from './services/api';
 import './index.css';
@@ -97,7 +97,7 @@ const TVDetails = ({ show, onBack }) => {
       style={detailsBg ? {
         backgroundImage: `url("${detailsBg}")`,
         backgroundSize: 'cover',
-        backgroundPosition: 'center top',
+        backgroundPosition: 'center 25%',
         backgroundRepeat: 'no-repeat',
         backgroundAttachment: 'fixed',
       } : {}}
@@ -182,7 +182,7 @@ function App() {
 
   const [row1, setRow1] = useState([]);
   const [row2, setRow2] = useState([]);
-  const [row3, setRow3] = useState([]);
+  const [row10, setRow10] = useState([]); // Sorting Row: Trending by views count (proxy: last_upload_date)
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -192,8 +192,9 @@ function App() {
   const [showIframe, setShowIframe] = useState(false);
   const [movieIframeKey, setMovieIframeKey] = useState(0);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [featuredItem, setFeaturedItem] = useState(null);
-  const [featuredPoster, setFeaturedPoster] = useState(null);
+  const [featuredItems, setFeaturedItems] = useState([]); // 6 items
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [featuredPosters, setFeaturedPosters] = useState({}); // id -> url
   const [isScrolled, setIsScrolled] = useState(false);
 
   // Sync mode to localStorage
@@ -208,23 +209,29 @@ function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // auto-play slide
+  useEffect(() => {
+    if (featuredItems.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % featuredItems.length);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [featuredItems]);
+
   // reload rows when mode switches
   useEffect(() => {
-    setRow1([]); setRow2([]); setRow3([]);
-    setFeaturedItem(null); setFeaturedPoster(null);
+    setRow1([]); setRow2([]); setRow10([]);
+    setFeaturedItems([]); setFeaturedPosters({}); setCurrentSlide(0);
     setQuery(''); setFilterYear(''); setSearchResults([]);
     loadRows(mode);
   }, [mode]);
-
-  const fetchFn = useCallback((page, q = '') =>
-    mode === 'tv' ? fetchTVShows(page, q) : fetchMovies(page, q, ''),
-  [mode]);
 
   const loadRows = (currentMode) => {
     setLoading(true);
     const cachePrefix = currentMode === 'tv' ? 'tv_' : '';
 
-    const getRow = (pageNum, setRow, key) => {
+    const getRow = (pageNum, setRow, key, ordering = '', limit = 20) => {
       const cached = sessionStorage.getItem(key);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -232,7 +239,8 @@ function App() {
         return Promise.resolve(parsed);
       }
       const fn = currentMode === 'tv' ? fetchTVShows : fetchMovies;
-      return fn(pageNum).then(res => {
+      const params = currentMode === 'tv' ? [pageNum, '', ordering, limit] : [pageNum, '', '', ordering, limit];
+      return fn(...params).then(res => {
         if (res && res.data) {
           sessionStorage.setItem(key, JSON.stringify(res.data));
           setRow(res.data);
@@ -242,36 +250,44 @@ function App() {
       });
     };
 
-    getRow(1, setRow1, `${cachePrefix}row1`).then(data => {
-      if (data && data.length > 0) {
-        setFeaturedItem(data[Math.floor(Math.random() * data.length)]);
+    // Load Carousel items (Items marked as slider)
+    const fn = currentMode === 'tv' ? fetchTVShows : fetchMovies;
+    const carouselParams = currentMode === 'tv' ? [1, '', 'last_upload_date', 50] : [1, '', '', 'last_upload_date', 50];
+    fn(...carouselParams).then(res => {
+      if (res && res.data) {
+        const featured = res.data.filter(item => item.slider).slice(0, 6);
+        setFeaturedItems(featured);
       }
-      setLoading(false);
     }).catch(console.error);
 
+    getRow(1, setRow1, `${cachePrefix}row1`).then(() => setLoading(false)).catch(console.error);
     getRow(2, setRow2, `${cachePrefix}row2`).catch(console.error);
-    getRow(3, setRow3, `${cachePrefix}row3`).catch(console.error);
+    // Trending Row uses ordering: last_upload_date as requested
+    getRow(1, setRow10, `${cachePrefix}trending`, 'last_upload_date').catch(console.error);
   };
 
-  // featured poster
+  // bulk fetch posters for featured slides
   useEffect(() => {
-    if (featuredItem?.imdb_id) {
-      const cached = sessionStorage.getItem(`poster_${featuredItem.imdb_id}`);
-      if (cached) {
-        setFeaturedPoster(cached.replace('SX300', 'SX1080'));
-      } else {
-        fetch(`/api/poster?i=${featuredItem.imdb_id}`)
-          .then(r => r.json())
-          .then(data => {
-            if (data.Poster && data.Poster !== 'N/A') {
-              setFeaturedPoster(data.Poster.replace('SX300', 'SX1080'));
-              sessionStorage.setItem(`poster_${featuredItem.imdb_id}`, data.Poster);
-            }
-          })
-          .catch(console.error);
+    featuredItems.forEach(item => {
+      if (item?.imdb_id && !featuredPosters[item.imdb_id]) {
+        const cached = sessionStorage.getItem(`poster_${item.imdb_id}`);
+        if (cached) {
+          setFeaturedPosters(prev => ({ ...prev, [item.imdb_id]: cached.replace('SX300', 'SX1080') }));
+        } else {
+          fetch(`/api/poster?i=${item.imdb_id}`)
+            .then(r => r.json())
+            .then(data => {
+              if (data.Poster && data.Poster !== 'N/A') {
+                const hdUrl = data.Poster.replace('SX300', 'SX1080');
+                setFeaturedPosters(prev => ({ ...prev, [item.imdb_id]: hdUrl }));
+                sessionStorage.setItem(`poster_${item.imdb_id}`, data.Poster);
+              }
+            })
+            .catch(console.error);
+        }
       }
-    }
-  }, [featuredItem]);
+    });
+  }, [featuredItems]);
 
   // debounced search
   useEffect(() => {
@@ -448,35 +464,51 @@ function App() {
       ) : (
         /* Browse View */
         <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
-          {featuredItem && (
-            <header className="banner" style={{
-              backgroundSize: 'cover',
-              backgroundPosition: 'center 30%',
-              backgroundImage: featuredPoster
-                ? `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url("${featuredPoster}")`
-                : 'linear-gradient(135deg, #111 0%, #e5091444 100%)'
-            }}>
-              <div className="banner-contents">
-                <h1 className="banner-title">{featuredItem.orig_title}</h1>
-                <div className="banner-buttons">
-                  <button className="btn-primary" onClick={() => setSelectedItem(featuredItem)}>
-                    <PlayCircle size={20} />
-                    {mode === 'tv' ? 'Watch' : 'Play'}
-                  </button>
-                  <button className="btn-secondary" onClick={() => setSelectedItem(featuredItem)}>
-                    <Info size={20} /> More Info
-                  </button>
+          
+          <div className="banner-container">
+            {featuredItems.map((item, idx) => {
+              const poster = featuredPosters[item.imdb_id];
+              return (
+                <div key={item.imdb_id || idx} className={`slide ${idx === currentSlide ? 'active' : ''}`}>
+                  <header className="banner" style={{
+                    backgroundImage: poster 
+                      ? `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url("${poster}")` 
+                      : 'linear-gradient(135deg, #111 0%, #e5091444 100%)'
+                  }}>
+                    <div className="banner-contents">
+                      <h1 className="banner-title">{item.orig_title}</h1>
+                      <div className="banner-buttons">
+                        <button className="btn-primary" onClick={() => setSelectedItem(item)}>
+                          <PlayCircle size={20} />
+                          {mode === 'tv' ? 'Watch' : 'Play'}
+                        </button>
+                        <button className="btn-secondary" onClick={() => setSelectedItem(item)}>
+                          <Info size={20} /> More Info
+                        </button>
+                      </div>
+                      <p className="banner-description">
+                        {item.year} • {item.quality || (mode === 'tv' ? 'Series' : 'HD')}<br />
+                        {mode === 'tv'
+                          ? `Watch ${item.orig_title} episodes directly in your browser.`
+                          : `Watch ${item.orig_title} securely directly in your browser.`}
+                      </p>
+                    </div>
+                    <div className="banner-fadeBottom" />
+                  </header>
                 </div>
-                <p className="banner-description">
-                  {featuredItem.year} • {featuredItem.quality || (mode === 'tv' ? 'Series' : 'HD')}<br />
-                  {mode === 'tv'
-                    ? `Watch ${featuredItem.orig_title} episodes directly in your browser.`
-                    : `Watch ${featuredItem.orig_title} securely directly in your browser.`}
-                </p>
-              </div>
-              <div className="banner-fadeBottom" />
-            </header>
-          )}
+              );
+            })}
+            
+            <div className="dots-container">
+              {featuredItems.map((_, idx) => (
+                <div 
+                  key={idx} 
+                  className={`dot ${idx === currentSlide ? 'active' : ''}`}
+                  onClick={() => setCurrentSlide(idx)}
+                />
+              ))}
+            </div>
+          </div>
 
           {loading && row1.length === 0 ? (
             <div style={{ height: '30vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -484,9 +516,9 @@ function App() {
             </div>
           ) : (
             <>
+              <MediaRow title="Trending Views" items={row10} onWatch={setSelectedItem} isTV={mode === 'tv'} />
               <MediaRow title={mode === 'tv' ? 'Trending Series' : 'Trending Now'} items={row1} onWatch={setSelectedItem} isTV={mode === 'tv'} />
               <MediaRow title={mode === 'tv' ? 'Latest Episodes' : 'New Releases'} items={row2} onWatch={setSelectedItem} isTV={mode === 'tv'} />
-              <MediaRow title={mode === 'tv' ? 'Popular Shows' : 'Top Picks for You'} items={row3} onWatch={setSelectedItem} isTV={mode === 'tv'} />
             </>
           )}
         </div>
