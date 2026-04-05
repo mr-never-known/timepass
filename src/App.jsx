@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, PlayCircle, Loader, Trophy, ExternalLink, AlertTriangle, Info, X, Tv, Film, RotateCw } from 'lucide-react';
 import { fetchMovies, fetchTVShows } from './services/api';
 import './index.css';
@@ -116,7 +116,6 @@ const TVDetails = ({ show, onBack }) => {
             {show.orig_title} {show.year && <span style={{ fontSize: '1.5rem', opacity: 0.7 }}>({show.year})</span>}
           </h2>
 
-          {/* Season / Episode pickers */}
           <div className="tv-selectors">
             <div className="tv-selector-group">
               <label>Season</label>
@@ -178,11 +177,11 @@ const TVDetails = ({ show, onBack }) => {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
-  const [mode, setMode] = useState(() => localStorage.getItem('app_mode') || 'movies'); // 'movies' | 'tv'
+  const [mode, setMode] = useState(() => localStorage.getItem('app_mode') || 'movies');
 
   const [row1, setRow1] = useState([]);
   const [row2, setRow2] = useState([]);
-  const [row10, setRow10] = useState([]); // Sorting Row: Trending by views count (proxy: last_upload_date)
+  const [row3, setRow3] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -192,36 +191,32 @@ function App() {
   const [showIframe, setShowIframe] = useState(false);
   const [movieIframeKey, setMovieIframeKey] = useState(0);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [featuredItems, setFeaturedItems] = useState([]); // 6 items
+  const [featuredItems, setFeaturedItems] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [featuredPosters, setFeaturedPosters] = useState({}); // id -> url
+  const [featuredPosters, setFeaturedPosters] = useState({});
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Sync mode to localStorage
   useEffect(() => {
     localStorage.setItem('app_mode', mode);
   }, [mode]);
 
-  // scroll listener
   useEffect(() => {
     const onScroll = () => setIsScrolled(window.scrollY > 100);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // auto-play slide
   useEffect(() => {
     if (featuredItems.length > 0) {
       const interval = setInterval(() => {
         setCurrentSlide(prev => (prev + 1) % featuredItems.length);
-      }, 10000);
+      }, 6000);
       return () => clearInterval(interval);
     }
   }, [featuredItems]);
 
-  // reload rows when mode switches
   useEffect(() => {
-    setRow1([]); setRow2([]); setRow10([]);
+    setRow1([]); setRow2([]); setRow3([]);
     setFeaturedItems([]); setFeaturedPosters({}); setCurrentSlide(0);
     setQuery(''); setFilterYear(''); setSearchResults([]);
     loadRows(mode);
@@ -231,7 +226,7 @@ function App() {
     setLoading(true);
     const cachePrefix = currentMode === 'tv' ? 'tv_' : '';
 
-    const getRow = (pageNum, setRow, key, ordering = '', limit = 20) => {
+    const getRow = (pageNum, setRow, key) => {
       const cached = sessionStorage.getItem(key);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -239,8 +234,7 @@ function App() {
         return Promise.resolve(parsed);
       }
       const fn = currentMode === 'tv' ? fetchTVShows : fetchMovies;
-      const params = currentMode === 'tv' ? [pageNum, '', ordering, limit] : [pageNum, '', '', ordering, limit];
-      return fn(...params).then(res => {
+      return fn(pageNum).then(res => {
         if (res && res.data) {
           sessionStorage.setItem(key, JSON.stringify(res.data));
           setRow(res.data);
@@ -250,10 +244,8 @@ function App() {
       });
     };
 
-    // Load Carousel items (Items marked as slider)
     const fn = currentMode === 'tv' ? fetchTVShows : fetchMovies;
-    const carouselParams = currentMode === 'tv' ? [1, '', 'last_upload_date', 50] : [1, '', '', 'last_upload_date', 50];
-    fn(...carouselParams).then(res => {
+    fn(1, '', '', 50).then(res => {
       if (res && res.data) {
         const featured = res.data.filter(item => item.slider).slice(0, 6);
         setFeaturedItems(featured);
@@ -262,11 +254,9 @@ function App() {
 
     getRow(1, setRow1, `${cachePrefix}row1`).then(() => setLoading(false)).catch(console.error);
     getRow(2, setRow2, `${cachePrefix}row2`).catch(console.error);
-    // Trending Row uses ordering: last_upload_date as requested
-    getRow(1, setRow10, `${cachePrefix}trending`, 'last_upload_date').catch(console.error);
+    getRow(3, setRow3, `${cachePrefix}row3`).catch(console.error);
   };
 
-  // bulk fetch posters for featured slides
   useEffect(() => {
     featuredItems.forEach(item => {
       if (item?.imdb_id && !featuredPosters[item.imdb_id]) {
@@ -289,7 +279,6 @@ function App() {
     });
   }, [featuredItems]);
 
-  // debounced search
   useEffect(() => {
     const t = setTimeout(() => {
       if (query.trim() !== '' || filterYear !== '') {
@@ -311,12 +300,10 @@ function App() {
 
   const clearSearch = () => { setQuery(''); setFilterYear(''); setMobileSearchOpen(false); };
 
-  // ── TV Details View ──
   if (selectedItem && mode === 'tv') {
     return <TVDetails show={selectedItem} onBack={() => setSelectedItem(null)} />;
   }
 
-  // ── Movie Details View ──
   if (selectedItem && mode === 'movies') {
     const cachedPoster = sessionStorage.getItem(`poster_${selectedItem.imdb_id}`);
     const detailsBg = cachedPoster ? cachedPoster.replace('SX300', 'SX1080') : null;
@@ -383,7 +370,6 @@ function App() {
 
   return (
     <div className="app">
-      {/* Navbar */}
       <nav className={`nav-netflix ${isScrolled ? 'scrolled' : ''}`}>
         <div className="nav-header">
           <div className="nav-logo">PURA TIMEPASS</div>
@@ -392,18 +378,11 @@ function App() {
           </button>
         </div>
 
-        {/* Mode toggle */}
         <div className="mode-toggle">
-          <button
-            className={`mode-btn ${mode === 'movies' ? 'active' : ''}`}
-            onClick={() => setMode('movies')}
-          >
+          <button className={`mode-btn ${mode === 'movies' ? 'active' : ''}`} onClick={() => setMode('movies')}>
             <Film size={16} /> Movies
           </button>
-          <button
-            className={`mode-btn ${mode === 'tv' ? 'active' : ''}`}
-            onClick={() => setMode('tv')}
-          >
+          <button className={`mode-btn ${mode === 'tv' ? 'active' : ''}`} onClick={() => setMode('tv')}>
             <Tv size={16} /> TV Series
           </button>
         </div>
@@ -434,11 +413,8 @@ function App() {
       </nav>
 
       {isSearching ? (
-        /* Search Results */
         <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
-          <h2 className="search-title">
-            {mode === 'tv' ? 'TV Series' : 'Movies'} matching &ldquo;{query}&rdquo;
-          </h2>
+          <h2 className="search-title">{mode === 'tv' ? 'TV Series' : 'Movies'} matching &ldquo;{query}&rdquo;</h2>
           {loading ? (
             <div className="search-grid" style={{ minHeight: '50vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <Loader className="spin" size={48} color="var(--accent-color)" />
@@ -446,12 +422,7 @@ function App() {
           ) : searchResults.length > 0 ? (
             <div className="search-grid">
               {searchResults.map(item => (
-                <MediaCard
-                  key={item.imdb_id || item.tmdbid || Math.random()}
-                  item={item}
-                  onWatch={setSelectedItem}
-                  isTV={mode === 'tv'}
-                />
+                <MediaCard key={item.imdb_id || item.tmdbid} item={item} onWatch={setSelectedItem} isTV={mode === 'tv'} />
               ))}
             </div>
           ) : (
@@ -462,9 +433,7 @@ function App() {
           )}
         </div>
       ) : (
-        /* Browse View */
         <div className="animate-fade-in" style={{ paddingBottom: '3rem' }}>
-          
           <div className="banner-container">
             {featuredItems.map((item, idx) => {
               const poster = featuredPosters[item.imdb_id];
@@ -479,8 +448,7 @@ function App() {
                       <h1 className="banner-title">{item.orig_title}</h1>
                       <div className="banner-buttons">
                         <button className="btn-primary" onClick={() => setSelectedItem(item)}>
-                          <PlayCircle size={20} />
-                          {mode === 'tv' ? 'Watch' : 'Play'}
+                          <PlayCircle size={20} /> {mode === 'tv' ? 'Watch' : 'Play'}
                         </button>
                         <button className="btn-secondary" onClick={() => setSelectedItem(item)}>
                           <Info size={20} /> More Info
@@ -488,9 +456,7 @@ function App() {
                       </div>
                       <p className="banner-description">
                         {item.year} • {item.quality || (mode === 'tv' ? 'Series' : 'HD')}<br />
-                        {mode === 'tv'
-                          ? `Watch ${item.orig_title} episodes directly in your browser.`
-                          : `Watch ${item.orig_title} securely directly in your browser.`}
+                        {mode === 'tv' ? `Watch ${item.orig_title} episodes directly in your browser.` : `Watch ${item.orig_title} securely directly in your browser.`}
                       </p>
                     </div>
                     <div className="banner-fadeBottom" />
@@ -498,14 +464,9 @@ function App() {
                 </div>
               );
             })}
-            
             <div className="dots-container">
               {featuredItems.map((_, idx) => (
-                <div 
-                  key={idx} 
-                  className={`dot ${idx === currentSlide ? 'active' : ''}`}
-                  onClick={() => setCurrentSlide(idx)}
-                />
+                <div key={idx} className={`dot ${idx === currentSlide ? 'active' : ''}`} onClick={() => setCurrentSlide(idx)} />
               ))}
             </div>
           </div>
@@ -516,9 +477,9 @@ function App() {
             </div>
           ) : (
             <>
-              <MediaRow title="Trending Views" items={row10} onWatch={setSelectedItem} isTV={mode === 'tv'} />
               <MediaRow title={mode === 'tv' ? 'Trending Series' : 'Trending Now'} items={row1} onWatch={setSelectedItem} isTV={mode === 'tv'} />
               <MediaRow title={mode === 'tv' ? 'Latest Episodes' : 'New Releases'} items={row2} onWatch={setSelectedItem} isTV={mode === 'tv'} />
+              <MediaRow title={mode === 'tv' ? 'Top Rated' : 'More to Explore'} items={row3} onWatch={setSelectedItem} isTV={mode === 'tv'} />
             </>
           )}
         </div>
